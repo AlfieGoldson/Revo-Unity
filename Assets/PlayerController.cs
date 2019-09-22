@@ -43,7 +43,11 @@ public class PlayerController : MonoBehaviour
         isJumping = false,
         isFastFalling = false;
 
-    [SerializeField] Transform sprite;
+    [SerializeField]
+    Transform
+        arrowPointer,
+        sprite;
+    Animator anim;
 
     [Header("Planet")]
     [SerializeField] GravityAttractor planet;
@@ -55,6 +59,7 @@ public class PlayerController : MonoBehaviour
     private void Awake()
     {
         rb = GetComponent<Rigidbody2D>();
+        anim = GetComponent<Animator>();
         gravityMultiplier = defaultGravityMultiplier;
     }
 
@@ -98,7 +103,7 @@ public class PlayerController : MonoBehaviour
 
         gravityMultiplier = isFastFalling ? fastFallGravityMultiplier : defaultGravityMultiplier;
 
-        MovementToAimAngle(newMovement);
+        UpdateAnim(newMovement);
     }
 
     void FixedUpdate()
@@ -164,10 +169,15 @@ public class PlayerController : MonoBehaviour
         }
     }
 
-    void MovementToAimAngle(Vector2 _movement)
+    void UpdateAnim(Vector2 _movement)
     {
-        Quaternion rot = movement.magnitude >= 0.1f ? Quaternion.FromToRotation(sprite.up, movement.normalized) * sprite.localRotation * transform.rotation : Quaternion.Euler(Vector3.zero);
-        sprite.localRotation = Quaternion.Lerp(sprite.localRotation, rot, Time.deltaTime * 16f);
+        Quaternion rot = movement.magnitude >= 0.1f ? Quaternion.FromToRotation(arrowPointer.up, movement.normalized) * arrowPointer.localRotation * transform.rotation : Quaternion.Euler(Vector3.zero);
+        arrowPointer.localRotation = Quaternion.Lerp(arrowPointer.localRotation, rot, Time.deltaTime * 16f);
+
+        if (_movement.x != 0)
+            sprite.localScale = new Vector3(_movement.x, 1, 1);
+
+        anim.SetFloat("MovementX_f", Mathf.Abs(_movement.x));
     }
 }
 
