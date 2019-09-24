@@ -12,7 +12,8 @@ public class PlayerController : MonoBehaviour
         downKey = new KeyInput(KeyCode.S),
         leftKey = new KeyInput(KeyCode.Q),
         rightKey = new KeyInput(KeyCode.D),
-        jumpKey = new KeyInput(KeyCode.Space);
+        jumpKey = new KeyInput(KeyCode.Space),
+        shieldKey = new KeyInput(KeyCode.LeftShift);
 
     [SerializeField]
     float
@@ -20,6 +21,7 @@ public class PlayerController : MonoBehaviour
         jumpForce = 5f,
         defaultGravityMultiplier = 1f,
         fastFallGravityMultiplier = 6f,
+        planetTravelGravityMultiplier = 20f,
         momentumGainSpeed = 6f,
         maxVelocity = 5f,
         maxTravelDistance = 50f;
@@ -41,20 +43,36 @@ public class PlayerController : MonoBehaviour
     bool
         isGrounded = false,
         isJumping = false,
-        isFastFalling = false;
+        isFastFalling = false,
+        isChangingPlanet = false;
 
     [SerializeField]
     Transform
         arrowPointer,
         sprite;
+
     Animator anim;
+
+    [SerializeField]
+    CustomTrail
+        trailPrefab,
+        currentTrail;
 
     [Header("Planet")]
     [SerializeField] GravityAttractor planet;
     [SerializeField] LayerMask planetMask;
 
-    [Header("Trail")]
-    [SerializeField] LineRenderer trail;
+    [Header("Shield")]
+    [SerializeField] bool isShielding;
+    [SerializeField]
+    float
+        maxShieldFrames = 2f,
+        shieldTime = 0f,
+        shieldMaxDurability = 100f,
+        shieldDurability = 100f,
+        shieldDamagePerSecond = 40f,
+        shieldRecoveryPerSecond = 60f;
+    [SerializeField] Transform shield;
 
     private void Awake()
     {
@@ -72,17 +90,21 @@ public class PlayerController : MonoBehaviour
         movement = Vector2.Lerp(movement, newMovement, Time.deltaTime * momentumGainSpeed);
 
         CheckGround();
-        CheckDoubleTaps();
 
         isJumping = TimeFrames.ToFrames(Time.time - lastJumpTime) <= jumpFrames;
 
         if (isGrounded)
+        {
             jumpCount = 0;
+            isChangingPlanet = false;
+        }
+
+        CheckDoubleTaps();
 
         if (downKey.CheckKeyUp() || isGrounded)
             isFastFalling = false;
 
-        if (!isJumping)
+        if (!isJumping && !isChangingPlanet)
         {
             if (jumpKey.CheckKeyDown() && jumpCount < maxAerialJumps)
             {
@@ -101,7 +123,9 @@ public class PlayerController : MonoBehaviour
 
         transform.Translate(Vector3.right * movement.x * speed * Time.deltaTime);
 
-        gravityMultiplier = isFastFalling ? fastFallGravityMultiplier : defaultGravityMultiplier;
+        gravityMultiplier = isChangingPlanet ? planetTravelGravityMultiplier : (isFastFalling ? fastFallGravityMultiplier : defaultGravityMultiplier);
+
+        CheckShielding();
 
         UpdateAnim(newMovement);
     }
@@ -129,6 +153,30 @@ public class PlayerController : MonoBehaviour
             TeleportDown();
     }
 
+    void CheckShielding()
+    {
+        if (shieldKey.CheckKeyDown())
+        {
+            isShielding = true;
+            shieldTime = Time.time;
+        }
+
+        if (!shieldKey.CheckKey() || shieldDurability <= 0)
+            isShielding = false;
+
+        if (isShielding)
+        {
+            shield.gameObject.SetActive(true);
+            shieldDurability = Mathf.Clamp(shieldDurability - Time.deltaTime * shieldDamagePerSecond, 0, shieldMaxDurability);
+            shield.localScale = Vector3.one * (shieldDurability / shieldMaxDurability);
+        }
+        else
+        {
+            shield.gameObject.SetActive(false);
+            shieldDurability = Mathf.Clamp(shieldDurability + Time.deltaTime * shieldRecoveryPerSecond, 0, shieldMaxDurability);
+        }
+    }
+
     void Dash(Vector2 direction)
     {
         Debug.Log("Dash!");
@@ -139,12 +187,17 @@ public class PlayerController : MonoBehaviour
         Debug.Log("Teleport!");
         if (isGrounded)
         {
+            currentTrail.DisableTrail();
+
             Vector3 teleportationVector = 2 * (planet.transform.position - transform.position);
             transform.position += teleportationVector;
+
+            currentTrail = (CustomTrail) Instantiate(trailPrefab, transform.position, Quaternion.identity, transform);
         }
         else
         {
-            // Teleport To the Ground
+            Vector3 teleportationVector = (transform.position - planet.transform.position).normalized * (planet.transform.localScale.x + transform.localScale.x) / 2;
+            transform.position = planet.transform.position + teleportationVector;
         }
     }
 
@@ -161,6 +214,7 @@ public class PlayerController : MonoBehaviour
             if (hit.transform.CompareTag("Planet"))
             {
                 Debug.Log("Meteor");
+                isChangingPlanet = true;
                 float distance = Vector3.Distance(transform.position, hit.transform.position);
                 distance -= transform.localScale.x + hit.transform.localScale.x;
 
@@ -178,6 +232,7 @@ public class PlayerController : MonoBehaviour
             sprite.localScale = new Vector3(_movement.x, 1, 1);
 
         anim.SetFloat("MovementX_f", Mathf.Abs(_movement.x));
+        anim.SetBool("IsJumping_b", isChangingPlanet);
     }
 }
 

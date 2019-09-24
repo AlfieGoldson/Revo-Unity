@@ -12,6 +12,7 @@ public class GravityAttractor : MonoBehaviour
         Vector3 localUp = body.transform.up;
 
         body.AddForce(gravityUp * gravity * gravityMultiplier);
-        body.transform.rotation = Quaternion.FromToRotation(localUp, gravityUp) * body.transform.rotation;
+        // body.transform.rotation = Quaternion.FromToRotation(localUp, gravityUp) * body.transform.rotation;
+        body.transform.rotation = Quaternion.Euler(new Vector3(0, 0, Util.AngleBetweenVector2(transform.up, gravityUp) + transform.rotation.eulerAngles.z));
     }
 }
